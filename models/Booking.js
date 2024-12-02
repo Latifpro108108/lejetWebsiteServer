@@ -6,24 +6,15 @@ const bookingSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    outboundFlight: {
+    flight: {  // Changed from outboundFlight to match your route
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Flight',
         required: true
     },
-    returnFlight: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Flight'
-    },
-    outboundTicketNumber: {
+    ticketNumber: {  // Changed from outboundTicketNumber to match your route
         type: String,
         required: true,
         unique: true
-    },
-    returnTicketNumber: {
-        type: String,
-        unique: true,
-        sparse: true
     },
     seatClass: {
         type: String,
@@ -35,13 +26,6 @@ const bookingSchema = new mongoose.Schema({
         required: true,
         min: 1
     },
-    outboundAmount: {
-        type: Number,
-        required: true
-    },
-    returnAmount: {
-        type: Number
-    },
     totalAmount: {
         type: Number,
         required: true
@@ -52,15 +36,7 @@ const bookingSchema = new mongoose.Schema({
         default: 'pending'
     },
     departureDate: {
-        type: Date,
-        required: true
-    },
-    returnDate: {
         type: Date
-    },
-    isRoundTrip: {
-        type: Boolean,
-        default: false
     },
     paymentMethod: {
         type: String,

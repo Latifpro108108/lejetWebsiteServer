@@ -5,90 +5,42 @@ const Flight = require('../models/Flight');
 const auth = require('../middleware/auth');
 const { sendEmail, sendBookingConfirmation, sendTicketConfirmation } = require('../utils/emailServices');
 
-// Create new booking
 router.post('/', auth, async (req, res) => {
     try {
-        const { 
-            flightId, 
-            returnFlightId,
-            seatClass, 
-            passengers, 
-            outboundAmount,
-            returnAmount,
-            totalAmount,
-            isRoundTrip 
-        } = req.body;
+        const { flightId, seatClass, passengers, totalAmount } = req.body;
         
-        // Verify outbound flight exists and has enough seats
-        const outboundFlight = await Flight.findById(flightId);
-        if (!outboundFlight) {
-            return res.status(404).json({ message: 'Outbound flight not found' });
+        // Verify flight exists and has enough seats
+        const flight = await Flight.findById(flightId);
+        if (!flight) {
+            return res.status(404).json({ message: 'Flight not found' });
         }
 
-        if (outboundFlight.availableSeats[seatClass] < passengers) {
-            return res.status(400).json({ message: 'Not enough seats available on outbound flight' });
+        if (flight.availableSeats[seatClass] < passengers) {
+            return res.status(400).json({ message: 'Not enough seats available' });
         }
 
-        // Create booking object
-        const bookingData = {
+        // Generate unique ticket number
+        const ticketNumber = `LJ${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
+
+        const booking = new Booking({
             user: req.user.id,
-            outboundFlight: flightId,
+            flight: flightId,
+            ticketNumber: ticketNumber,
             seatClass,
             passengers,
-            outboundAmount,
             totalAmount,
-            departureDate: outboundFlight.departureTime,
-            isRoundTrip,
-            outboundTicketNumber: `LJ${Date.now().toString().slice(-6)}`
-        };
-
-        // If round trip, verify return flight
-        if (isRoundTrip && returnFlightId) {
-            const returnFlight = await Flight.findById(returnFlightId);
-            if (!returnFlight) {
-                return res.status(404).json({ message: 'Return flight not found' });
-            }
-
-            if (returnFlight.availableSeats[seatClass] < passengers) {
-                return res.status(400).json({ message: 'Not enough seats available on return flight' });
-            }
-
-            bookingData.returnFlight = returnFlightId;
-            bookingData.returnAmount = returnAmount;
-            bookingData.returnDate = returnFlight.departureTime;
-            bookingData.returnTicketNumber = `LJ${Date.now().toString().slice(-6)}R`;
-        }
-
-        const booking = new Booking(bookingData);
-        await booking.save();
-
-        // Update seats for outbound flight
-        await Flight.findByIdAndUpdate(flightId, {
-            $inc: {
-                [`availableSeats.${seatClass}`]: -passengers
-            }
+            departureDate: flight.departureTime,
+            status: 'pending'
         });
 
-        // Update seats for return flight if round trip
-        if (isRoundTrip && returnFlightId) {
-            await Flight.findByIdAndUpdate(returnFlightId, {
-                $inc: {
-                    [`availableSeats.${seatClass}`]: -passengers
-                }
-            });
-        }
+        // Save the booking
+        const savedBooking = await booking.save();
 
         // Populate the saved booking
-        const populatedBooking = await Booking.findById(booking._id)
+        const populatedBooking = await Booking.findById(savedBooking._id)
             .populate('user', 'email name')
             .populate({
-                path: 'outboundFlight',
-                populate: {
-                    path: 'airplane'
-                }
-            })
-            .populate({
-                path: 'returnFlight',
+                path: 'flight',
                 populate: {
                     path: 'airplane'
                 }
@@ -96,26 +48,7 @@ router.post('/', auth, async (req, res) => {
 
         // Send booking confirmation email
         try {
-            const emailSubject = `LEJET Airlines - Booking Confirmation #${booking._id}`;
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1>Booking Confirmation</h1>
-                    <p>Dear ${populatedBooking.user.name},</p>
-                    <p>Your booking has been confirmed. Details:</p>
-                    <ul>
-                        <li>Booking Reference: ${booking._id}</li>
-                        <li>From: ${populatedBooking.outboundFlight.from}</li>
-                        <li>To: ${populatedBooking.outboundFlight.to}</li>
-                        <li>Date: ${new Date(populatedBooking.departureDate).toLocaleString()}</li>
-                        <li>Class: ${populatedBooking.seatClass}</li>
-                        <li>Passengers: ${populatedBooking.passengers}</li>
-                        <li>Total Amount: GH₵${populatedBooking.totalAmount}</li>
-                    </ul>
-                    <p>Thank you for choosing LEJET Airlines!</p>
-                </div>
-            `;
-            
-            await sendEmail(populatedBooking.user.email, emailSubject, emailHtml);
+            await sendBookingConfirmation(populatedBooking);
         } catch (emailError) {
             console.error('Error sending booking confirmation:', emailError);
         }
