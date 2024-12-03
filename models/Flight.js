@@ -120,4 +120,3 @@ flightSchema.statics.findReturnFlights = async function(fromCity, toCity, depart
 };
 
 module.exports = mongoose.model('Flight', flightSchema);
-

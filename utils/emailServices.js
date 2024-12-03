@@ -26,7 +26,6 @@ transporter.verify((error, success) => {
 
 const sendEmail = async (to, subject, html) => {
     try {
-        // Validate email recipient
         if (!to) {
             console.error('No recipient email provided');
             return;
@@ -51,7 +50,7 @@ const sendEmail = async (to, subject, html) => {
         if (error.response) {
             console.error('SMTP Response:', error.response);
         }
-        throw error; // Rethrow the error to handle it in the calling function
+        throw error;
     }
 };
 
